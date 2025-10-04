@@ -103,3 +103,45 @@ def to_hf_dataset(qa_pairs: List[Dict[str, str]], output_path: str) -> str:
     dataset.save_to_disk(output_path)
     
     return output_path
+
+def to_parquet(qa_pairs: List[Dict[str, str]], output_path: str) -> str:
+    """
+    Convert QA pairs to a Hugging Face dataset and save in Parquet format.
+    
+    Args:
+        qa_pairs: List of question-answer dictionaries
+        output_path: File path to save the dataset
+        
+    Returns:
+        Path to the saved Parquet file
+    """
+    try:
+        from datasets import Dataset
+    except ImportError:
+        raise ImportError(
+            "The 'datasets' package is required for Parquet format. "
+            "Install it with: pip install datasets"
+        )
+    
+    # Ensure output path has .parquet extension
+    if not output_path.endswith('.parquet'):
+        output_path += '.parquet'
+    
+    # Create directory if needed
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    
+    # Convert list of dicts to dict of lists for Dataset.from_dict()
+    if not qa_pairs:
+        return output_path # Return path to empty file
+    
+    dict_of_lists = {}
+    for key in qa_pairs[0].keys():
+        dict_of_lists[key] = [item.get(key, "") for item in qa_pairs]
+    
+    # Create dataset
+    dataset = Dataset.from_dict(dict_of_lists)
+    
+    # Save dataset in Parquet format
+    dataset.to_parquet(output_path)
+    
+    return output_path

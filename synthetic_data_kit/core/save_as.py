@@ -10,7 +10,7 @@ import json
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 
-from synthetic_data_kit.utils.format_converter import to_jsonl, to_alpaca, to_fine_tuning, to_chatml, to_hf_dataset
+from synthetic_data_kit.utils.format_converter import to_jsonl, to_alpaca, to_fine_tuning, to_chatml, to_hf_dataset, to_parquet
 from synthetic_data_kit.utils.llm_processing import convert_to_conversation_format
 
 def convert_format(
