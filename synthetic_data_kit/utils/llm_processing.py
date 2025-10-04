@@ -138,6 +138,15 @@ def parse_ratings(text: str, original_items: List[Dict[str, str]] = None) -> Lis
                             return []
                     if verbose:
                         print(f"Successfully parsed {len(parsed)} items in JSON array")
+                    
+                    # Merge ratings with original items
+                    if original_items and len(original_items) == len(parsed):
+                        if verbose:
+                            print(f"Merging {len(parsed)} ratings with original items.")
+                        for i, item in enumerate(original_items):
+                            item.update(parsed[i])
+                        return original_items
+                    
                     return parsed
             except json.JSONDecodeError as e:
                 if verbose:
