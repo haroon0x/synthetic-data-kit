@@ -13,16 +13,18 @@ from synthetic_data_kit.utils.format_converter import to_jsonl, to_alpaca, to_fi
 from synthetic_data_kit.utils.llm_processing import convert_to_conversation_format
 
 def convert_format(
-    input_path: str,
-    output_path: str,
-    format_type: str,
+    input_path: Optional[str] = None,
+    qa_pairs: Optional[List[Dict[str, Any]]] = None,
+    output_path: Optional[str] = None,
+    format_type: str = "jsonl",
     config: Optional[Dict[str, Any]] = None,
     storage_format: str = "json",
 ) -> str:
     """Convert data to different formats
     
     Args:
-        input_path: Path to the input file
+        input_path: Path to the input file (required if qa_pairs is not provided)
+        qa_pairs: A list of QA pairs to convert (required if input_path is not provided)
         output_path: Path to save the output
         format_type: Output format (jsonl, alpaca, ft, chatml)
         config: Configuration dictionary
@@ -31,35 +33,13 @@ def convert_format(
     Returns:
         Path to the output file or directory
     """
-    # Load input file
-    with open(input_path, 'r', encoding='utf-8') as f:
-        data = json.load(f)
-    
-    # Extract data based on known structures
-    # Try to handle the case where we have QA pairs or conversations
-    if "qa_pairs" in data:
-        qa_pairs = data.get("qa_pairs", [])
-    elif "filtered_pairs" in data:
-        qa_pairs = data.get("filtered_pairs", [])
-    elif "conversations" in data:
-        conversations = data.get("conversations", [])
-        qa_pairs = []
-        for conv in conversations:
-            if len(conv) >= 3 and conv[1]['role'] == 'user' and conv[2]['role'] == 'assistant':
-                qa_pairs.append({
-                    'question': conv[1]['content'],
-                    'answer': conv[2]['content']
-                })
-    else:
-        # If the file is just an array of objects, check if they look like QA pairs
-        if isinstance(data, list):
-            qa_pairs = []
-            for item in data:
-                if isinstance(item, dict) and "question" in item and "answer" in item:
-                    qa_pairs.append(item)
+    if qa_pairs is None:
+        if input_path and os.path.exists(input_path):
+            with open(input_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            qa_pairs = data.get("qa_pairs", [])
         else:
-            raise ValueError("Unrecognized data format - expected QA pairs or conversations")
-    
+            raise ValueError("Either 'qa_pairs' or a valid 'input_path' must be provided.")
     # Ensure output directory exists
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     

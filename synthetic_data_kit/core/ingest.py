@@ -85,67 +85,23 @@ def determine_parser(file_path: str, config: Dict[str, Any], multimodal: bool = 
 
 def process_file(
     file_path: str,
-    output_dir: Optional[str] = None,
-    output_name: Optional[str] = None,
     config: Optional[Dict[str, Any]] = None,
     multimodal: bool = False,
 ) -> str:
-    """Process a file using the appropriate parser
+    """Process a file using the appropriate parser and return in-memory content.
 
     Args:
-        file_path: Path to the file or URL to parse
-        output_dir: Directory to save parsed text (if None, uses config)
-        output_name: Custom filename for output (if None, uses original name)
-        config: Configuration dictionary (if None, uses default)
-        multimodal: Whether to use the multimodal parser
+        file_path: Path to the file or URL to parse.
+        config: Configuration dictionary (if None, uses default).
+        multimodal: Whether to use the multimodal parser.
 
     Returns:
-        Path to the output file
+        The parsed text content as a string.
     """
-    from synthetic_data_kit.utils.lance_utils import create_lance_dataset
-    import pyarrow as pa
-    # Create output directory if it doesn't exist
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir, exist_ok=True)
-
-    # Determine parser based on file type
     parser = determine_parser(file_path, config, multimodal)
 
-    # Parse the file
-    content = parser.parse(file_path)
+    parsed_data = parser.parse(file_path)
+    
+    text_content = " ".join([item['text'] for item in parsed_data if 'text' in item and item['text']])
 
-    # Generate output filename if not provided
-    if not output_name:
-        if file_path.startswith(("http://", "https://")):
-            # Extract filename from URL
-            if "youtube.com" in file_path or "youtu.be" in file_path:
-                # Use video ID for YouTube URLs
-                import re
-
-                video_id = re.search(r"(?:v=|\.be/)([^&]+)", file_path).group(1)
-                output_name = f"youtube_{video_id}"
-            else:
-                # Use domain for other URLs
-                from urllib.parse import urlparse
-
-                domain = urlparse(file_path).netloc.replace(".", "_")
-                output_name = f"{domain}"
-        else:
-            # Use original filename
-            base_name = os.path.basename(file_path)
-            output_name = os.path.splitext(base_name)[0]
-
-    output_name += ".lance"
-    output_path = os.path.join(output_dir, output_name)
-
-    schema = pa.schema([
-        pa.field("text", pa.string()),
-        pa.field("image", pa.binary())
-    ]) if multimodal else pa.schema([
-        pa.field("text", pa.string())
-    ])
-
-    create_lance_dataset(content, output_path, schema=schema)
-
-
-    return output_path
+    return text_content

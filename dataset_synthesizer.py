@@ -3,7 +3,6 @@ from pathlib import Path
 import os
 from dotenv import load_dotenv
 load_dotenv()
-from synthetic_data_kit.models.llm_client import LLMClient
 from synthetic_data_kit.core.ingest import process_file as ingest
 from synthetic_data_kit.core.create import process_file
 from synthetic_data_kit.core.curate import curate_qa_pairs
@@ -29,43 +28,49 @@ def synthetic_data_pipline(file_path, output_dir, config_path, api_base, model):
         config_path: Path to the configuration YAML file    
         api_base: API base URL for the LLM
         model: Model name to use for the LLM
+
     Returns:
         Path to the final dataset in Hugging Face DatasetDict format
-
-
     """
-    file_name = file_path.split("\\")[-1]
-    file_type = file_path.rsplit(".", 1)[1].lower()
 
-    parsed_txt = ingest(#parse text from file
+    parsed_content = ingest( # parsers the file and return the text content
         file_path=file_path,
-        output_dir= output_dir,
-        output_name=file_name,
-        )
-    output_file = process_file( #create QA pairs from text file
-        file_path=parsed_txt,
-        output_dir= output_dir,
+        config=config_path,
+    ) 
+    generated_content = process_file( # generates a Dict of summary : "" , qa_pairs : ""
+        text_content=parsed_content,
         config_path=config_path,
         api_base=api_base,
         model=model,
         provider="api-endpoint",
         num_pairs=10,
-        )
-    curated_output = curate_qa_pairs(#curate QA pairs using LLM
-        input_path = output_file,
-        output_path =  os.path.join(output_dir, f"{file_name}_curated.json"),
-        api_base= api_base,
-        model = model,
-        config_path = config_path,
-        verbose = True,
+        content_type='qa'
+    )
+    curated_pairs = curate_qa_pairs(
+        qa_pairs=generated_content['qa_pairs'],
+        api_base=api_base,
+        model=model,
+        config_path=config_path,
+        verbose=True,
         provider="api-endpoint",
     )
-    dataset_dict=  convert_format(#convert to Hugging Face dataset using chatml format and returns the datasetDict
-        input_path = curated_output,
-        output_path = output_dir,
-        format_type = "chatml",
-        storage_format= "hf",
+    print(curated_pairs)
+    dataset_dict = convert_format(
+        qa_pairs=curated_pairs,
+        output_path=output_dir,
+        format_type="chatml",
+        storage_format="hf",
     )
 
-    
+    print(dataset_dict)
     return dataset_dict
+
+
+synthetic_data_pipline(
+    file_path=file_path,
+    output_dir=output_dir,
+    config_path=config_path,
+    api_base=api_base,
+    model=model,
+
+)

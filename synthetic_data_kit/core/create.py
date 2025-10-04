@@ -26,8 +26,8 @@ def read_json(file_path):
 
 
 def process_file(
-    file_path: str,
-    output_dir: str,
+    file_path: Optional[str] = None,
+    text_content: Optional[str] = None,
     config_path: Optional[Path] = None,
     api_base: Optional[str] = None,
     model: Optional[str] = None,
@@ -38,11 +38,12 @@ def process_file(
     chunk_size: Optional[int] = None,
     chunk_overlap: Optional[int] = None,
     rolling_summary: Optional[bool] = False,
-) -> str:
-    """Process a file to generate content
+) -> Dict:
+    """Process a file or text content to generate content
     
     Args:
-        file_path: Path to the text file to process
+        file_path: Path to the input file (required if text_content is not provided)
+        text_content: The text content to process (required if file_path is not provided)
         output_dir: Directory to save generated content
         config_path: Path to configuration file
         api_base: VLLM API base URL
@@ -52,13 +53,15 @@ def process_file(
         threshold: Quality threshold for filtering (1-10)
     
     Returns:
-        Path to the output file
+        A dictionary containing the generated content.
+
     """
-    # Create output directory if it doesn't exist
-    # The reason for having this directory logic for now is explained in context.py
-    os.makedirs(output_dir, exist_ok=True)
-    
-    # Initialize LLM client
+    if text_content is None:
+        if file_path and os.path.exists(file_path):
+            with open(file_path, 'r', encoding='utf-8') as f:
+                text_content = f.read()
+        else:
+            raise ValueError("Either 'text_content' or a valid 'file_path' must be provided.")
     client = LLMClient(
         config_path=config_path,
         provider=provider,
@@ -75,15 +78,7 @@ def process_file(
     # Debug: Print which provider is being used
     print(f"L Using {client.provider} provider")
     
-    # Generate base filename for output
-    base_name = os.path.splitext(os.path.basename(file_path))[0]
-    
-    # Generate content based on type
-    if file_path.endswith(".lance"):
-        dataset = load_lance_dataset(file_path)
-        documents = dataset.to_table().to_pylist()
-    else:
-        documents = [{"text": read_json(file_path), "image": None}]
+    documents = [{"text": text_content, "image": None}]
 
     if content_type == "qa":
         generator = QAGenerator(client, config_path)
@@ -102,28 +97,15 @@ def process_file(
             rolling_summary=rolling_summary
         )
         
-        # Save output
-        output_path = os.path.join(output_dir, f"{base_name}_qa_pairs.json")
-        print(f"Saving result to {output_path}")
-            
-        # Now save the actual result
-        try:
-            with open(output_path, 'w', encoding='utf-8') as f:
-                json.dump(result, f, indent=2)
-            print(f"Successfully wrote result to {output_path}")
-        except Exception as e:
-            print(f"Error writing result file: {e}")
-        
-        return output_path
+        return result
     
     elif content_type == "multimodal-qa":
         generator = MultimodalQAGenerator(client, config_path)
         output_path = generator.process_dataset(
             documents=documents,
-            output_dir=output_dir,
+           
             num_examples=num_pairs,
             verbose=verbose,
-            base_name=base_name,
         )
         return output_path
 
@@ -131,7 +113,6 @@ def process_file(
         generator = VQAGenerator(client, config_path)
         output_path = generator.process_dataset(
             documents=documents,
-            output_dir=output_dir,
             num_examples=num_pairs,
             verbose=verbose
         )
@@ -145,12 +126,7 @@ def process_file(
         # Generate just the summary
         summary = generator.generate_summary(full_text)
         
-        # Save output
-        output_path = os.path.join(output_dir, f"{base_name}_summary.json")
-        with open(output_path, 'w', encoding='utf-8') as f:
-            json.dump({"summary": summary}, f, indent=2)
-        
-        return output_path
+        return {"summary": summary}
     
     # So there are two separate categories of CoT
     # Simply CoT maps to "Hey I want CoT being generated"
@@ -177,10 +153,6 @@ def process_file(
             include_simple_steps=verbose  # More detailed if verbose is enabled
         )
         
-        # Save output
-        output_path = os.path.join(output_dir, f"{base_name}_cot_examples.json")
-        with open(output_path, 'w', encoding='utf-8') as f:
-            json.dump(result, f, indent=2)
         
         if verbose:
             # Print some example content

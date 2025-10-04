@@ -16,19 +16,21 @@ from synthetic_data_kit.utils.config import get_curate_config, get_prompt
 from synthetic_data_kit.utils.llm_processing import convert_to_conversation_format, parse_ratings
 
 def curate_qa_pairs(
-    input_path: str,
-    output_path: str,
+    input_path: Optional[str] = None,
+    qa_pairs: Optional[List[Dict[str, Any]]] = None,
+    output_path: Optional[str] = None,
     threshold: Optional[float] = None,
     api_base: Optional[str] = None,
     model: Optional[str] = None,
     config_path: Optional[Path] = None,
     verbose: bool = False,
     provider: Optional[str] = None,
-) -> str:
+) -> List[Dict[str, Any]]:
     """Clean and filter QA pairs based on quality ratings
     
     Args:
-        input_path: Path to the input file with QA pairs
+        input_path: Path to the input file with QA pairs (required if qa_pairs is not provided)
+        qa_pairs: A list of QA pairs to curate (required if input_path is not provided)
         output_path: Path to save the cleaned output
         threshold: Quality threshold (1-10)
         api_base: VLLM API base URL
@@ -37,7 +39,7 @@ def curate_qa_pairs(
         verbose: Show detailed output
     
     Returns:
-        Path to the cleaned output file
+        A list of curated QA pairs.
     """
     # Set verbose either via CLI or via env variable. If its via CLI, set it to env variable
     if verbose:
@@ -45,13 +47,18 @@ def curate_qa_pairs(
     else:
         os.environ['SDK_VERBOSE'] = 'false'
     
-    # Load input file
-    with open(input_path, 'r', encoding='utf-8') as f:
-        data = json.load(f)
-    
-    # Extract QA pairs
-    qa_pairs = data.get("qa_pairs", [])
-    summary = data.get("summary", "")
+    if qa_pairs is None:
+        if input_path and os.path.exists(input_path):
+            # Load input file
+            with open(input_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            # Extract QA pairs
+            qa_pairs = data.get("qa_pairs", [])
+            summary = data.get("summary", "")
+        else:
+            raise ValueError("Either 'qa_pairs' or a valid 'input_path' must be provided.")
+    else:
+        summary = ""
     
     # If there are no QA pairs or they're already filtered
     if not qa_pairs:
@@ -277,11 +284,12 @@ def curate_qa_pairs(
         "metrics": metrics
     }
     
-    # Ensure output directory exists
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    if output_path:
+        # Ensure output directory exists
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        
+        # Save result
+        with open(output_path, 'w', encoding='utf-8') as f:
+            json.dump(result, f, indent=2)
     
-    # Save result
-    with open(output_path, 'w', encoding='utf-8') as f:
-        json.dump(result, f, indent=2)
-    
-    return output_path
+    return filtered_pairs
